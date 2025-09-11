@@ -17,11 +17,12 @@ testData <- vroom("KaggleBikeShare/bike-sharing-demand/test.csv") |>
 my_linear_model <- linear_reg() |> #Type of model
   set_engine("lm") |> # Engine = What R function to use
   set_mode("regression") |> # Regression just means quantitative response
-  fit(formula=count ~ .-datetime, data=trainData)
+  fit(formula = log(count) ~ .-datetime, data=trainData)
 
 ## Generate Predictions Using Linear Model
 bike_predictions <- predict(my_linear_model,
-                            new_data=testData) # Use fit to predict
+                            new_data=testData) |> # Use fit to predict
+  mutate(.pred = exp(.pred))
 bike_predictions ## Look at the output, 1 column .pred
 
 
@@ -35,4 +36,4 @@ kaggle_submission <- bike_predictions |>
   mutate(datetime=as.character(format(datetime))) #needed for right format to Kaggle
 
 ## Write out the file9
-vroom_write(x=kaggle_submission, file="./KaggleBikeShare/LinearPreds1.csv", delim=",")
+vroom_write(x=kaggle_submission, file="./KaggleBikeShare/LinearPreds_logcount.csv", delim=",")
