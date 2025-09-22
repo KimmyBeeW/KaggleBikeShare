@@ -34,46 +34,56 @@ bike_recipe <- recipe(log_count ~ ., data = trainData) %>% # Set model formula a
   step_rm(datetime) %>%
   step_dummy(all_nominal_predictors()) %>% #create dummy variables
   step_zv(all_predictors()) %>% #removes zero-variance predictors
-  step_corr(all_predictors(), threshold=0.5) # removes > than .5 corr
+  step_corr(all_predictors(), threshold=0.5) %>% # removes > than .5 corr
+  step_normalize(all_numeric_predictors()) # all predictors are numeric and on the same scale.
 prepped_recipe <- prep(bike_recipe) # Sets up the preprocessing using myDataSet
 bake(prepped_recipe, new_data=NULL)
 
 
 # -------------------------------------------------------------------------
-## Model
-# Combine your linear regression model with your recipe into a linear regression workflow.
+# PENALIZED REGRESSION
+preg_model <- linear_reg( #Set model and tuning
+  penalty=tune(), # regularization strength (>0)
+  mixture=tune()) %>% # elastic net mixing parameter (0 = ridge, 1 = lasso, in between = elastic net)
+  set_engine("glmnet") # Function to fit in R
 
-  
-## Define a Model
-lin_model <- linear_reg() %>%
-  set_engine("lm") %>%
-  set_mode("regression")
-
-## Combine into a Workflow and fit
-bike_workflow <- workflow() %>%
+preg_wf <- workflow() %>%
   add_recipe(bike_recipe) %>%
-  add_model(lin_model) %>%
-  fit(data=trainData)
+  add_model(preg_model)
+
+penalty_grid <- grid_regular(
+  penalty(range = c(-4, 1)), # log10 scale ~ 0.0001 to 10
+  mixture(range = c(0, 1)),  # ridge → lasso
+  levels = c(10, 5)           # gives 50 combos
+)
+
+set.seed(123)
+cv_folds <- vfold_cv(trainData, v = 5)
+
+# Tune parameters
+preg_tune <- tune_grid(
+  preg_wf,
+  resamples = cv_folds,
+  grid = penalty_grid,
+  control = control_grid(save_pred = TRUE)
+)
+
+# Collect results
+collect_metrics(preg_tune)
+
+best_model <- select_best(preg_tune, metric = "rmse")
+
+final_wf <- finalize_workflow(preg_wf, best_model)
+
+final_fit <- fit(final_wf, data = trainData)
+
+bike_penalized_preds <- predict(final_fit, new_data = testData) %>%
+  mutate(.pred = exp(.pred))
+
 
 # -------------------------------------------------------------------------
-## Predictions
-# Use your workflow to predict the test data (don’t forget to backtransform the log(count) prediction).
-
-## Run all the steps on test data
-bike_lin_preds <- predict(bike_workflow, new_data = testData) %>%
-  mutate(.pred = exp(.pred))  # back-transform
-head(bike_lin_preds, 5)
-
-
-# -------------------------------------------------------------------------
-# Print out and show the first 5 rows of your baked dataset and report your Kaggle score to LearningSuite.
-
-prepped_recipe <- prep(bike_recipe) # Sets up the preprocessing using myDataSet
-baked_train <- bake(prepped_recipe, new_data=NULL)
-head(baked_train, 5)
-
 # Format the Predictions for Submission to Kaggle
-kaggle_submission <- bike_lin_preds |>
+kaggle_submission <- bike_penalized_preds |>
   bind_cols(testData) |> #Bind predictions with test data
   select(datetime, .pred) |> #Just keep datetime and prediction variables
   rename(count=.pred) |> #rename pred to count (for submission to Kaggle)
@@ -81,4 +91,6 @@ kaggle_submission <- bike_lin_preds |>
   mutate(datetime=as.character(format(datetime))) #needed for right format to Kaggle
 
 ## Write out the file9
-vroom_write(x=kaggle_submission, file="./KaggleBikeShare/LinearPreds_logcount2.csv", delim=",")
+vroom_write(x=kaggle_submission, 
+            file="./KaggleBikeShare/LinearPreds_penalized_regression.csv", 
+            delim=",")
