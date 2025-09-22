@@ -71,10 +71,19 @@ preg_tune <- tune_grid(
 
 # Collect results
 ## Plot Results
-collect_metrics(preg_tune) %>% # Gathers metrics into DF8
+rmse_plot <- collect_metrics(preg_tune) %>% # Gathers metrics into DF8
   filter(.metric=="rmse") %>%
-ggplot(data=., aes(x=penalty, y=mean, color=factor(mixture))) +
-geom_line()
+  ggplot(data=., aes(x=penalty, y=mean, color=factor(mixture))) +
+  geom_line() +
+  labs(x = "Penalty", y = "Mean RMSE", color = "Mixture")
+rmse_plot
+
+ggsave(
+  filename = "./KaggleBikeShare/rmse_plot_tune.png", # file path and name
+  plot = rmse_plot,                              # the ggplot object
+  width = 8, height = 5,                         # size in inches
+  dpi = 300                                      # resolution
+)
 
 
 # -------------------------------------
