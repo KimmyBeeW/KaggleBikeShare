@@ -52,25 +52,33 @@ preg_wf <- workflow() %>%
   add_model(preg_model)
 
 penalty_grid <- grid_regular(
-  penalty(range = c(-10, 1)), # log10 scale ~ 0.000...1 to 10
-  mixture(range = c(0, 1)),  # ridge → lasso
-  levels = c(10, 5)           # gives 50 combos
+  penalty(), # log10 scale
+  mixture(), # default range 0 to 1, ridge → lasso
+  levels = 5  # gives L^2 combos
 )
 
 set.seed(123)
-cv_folds <- vfold_cv(trainData, v = 5)
+cv_folds <- vfold_cv(trainData, v = 5, repeats = 1)
 
 # Tune parameters
 preg_tune <- tune_grid(
   preg_wf,
   resamples = cv_folds,
   grid = penalty_grid,
+  metrics=metric_set(rmse, mae),
   control = control_grid(save_pred = TRUE)
 )
 
 # Collect results
-collect_metrics(preg_tune)
+## Plot Results
+collect_metrics(preg_tune) %>% # Gathers metrics into DF8
+  filter(.metric=="rmse") %>%
+ggplot(data=., aes(x=penalty, y=mean, color=factor(mixture))) +
+geom_line()
 
+
+# -------------------------------------
+# Model
 best_model <- select_best(preg_tune, metric = "rmse")
 best_model
 
@@ -93,5 +101,5 @@ kaggle_submission <- bike_penalized_preds |>
 
 ## Write out the file9
 vroom_write(x=kaggle_submission, 
-            file="./KaggleBikeShare/LinearPreds_penalized_regression.csv", 
+            file="./KaggleBikeShare/LinearPreds_penalized_regression_tune.csv", 
             delim=",")
