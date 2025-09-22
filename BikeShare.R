@@ -86,7 +86,6 @@ ggsave(
 )
 
 
-# -------------------------------------
 # Model
 best_model <- select_best(preg_tune, metric = "rmse")
 best_model
@@ -98,17 +97,65 @@ final_fit <- fit(final_wf, data = trainData)
 bike_penalized_preds <- predict(final_fit, new_data = testData) %>%
   mutate(.pred = exp(.pred))
 
+# -------------------------------------------------------------------------
+# REGRESSION TREE
+
+# 1. Define the model
+tree_mod <- decision_tree(
+  tree_depth = tune(),
+  cost_complexity = tune(),
+  min_n = tune()
+) %>%
+  set_engine("rpart") %>%
+  set_mode("regression")
+
+# 2. Combine model with recipe into workflow
+tree_wf <- workflow() %>%
+  add_recipe(bike_recipe) %>%
+  add_model(tree_mod)
+
+# 3. Set up tuning grid
+tree_grid <- grid_regular(
+  tree_depth(range = c(1, 10)),
+  cost_complexity(range = c(-3, -1)),
+  min_n(range = c(2, 10)),
+  levels = c(5, 5, 5)
+)
+
+# 4. Set up cross-validation
+set.seed(123)
+cv_folds <- vfold_cv(trainData, v = 5)
+
+# 5. Tune parameters
+tree_tune <- tune_grid(
+  tree_wf,
+  resamples = cv_folds,
+  grid = tree_grid,
+  control = control_grid(save_pred = TRUE)
+)
+
+# 6. Select best model
+best_tree <- select_best(tree_tune, metric = "rmse")
+
+# 7. Finalize workflow and fit
+final_tree_wf <- finalize_workflow(tree_wf, best_tree)
+final_tree_fit <- fit(final_tree_wf, data = trainData)
+
+# 8. Predict on test data
+tree_preds <- predict(final_tree_fit, new_data = testData) %>%
+  mutate(.pred = exp(.pred))  # if using log(count) target
+
 
 # -------------------------------------------------------------------------
 # Format the Predictions for Submission to Kaggle
-kaggle_submission <- bike_penalized_preds |>
+kaggle_submission <- tree_preds |>
   bind_cols(testData) |> #Bind predictions with test data
   select(datetime, .pred) |> #Just keep datetime and prediction variables
   rename(count=.pred) |> #rename pred to count (for submission to Kaggle)
   mutate(count=pmax(0, count)) |> #pointwise max of (0, prediction)
   mutate(datetime=as.character(format(datetime))) #needed for right format to Kaggle
 
-## Write out the file9
+## Write out the file
 vroom_write(x=kaggle_submission, 
-            file="./KaggleBikeShare/LinearPreds_penalized_regression_tune.csv", 
+            file="./KaggleBikeShare/LinearPreds_tree.csv", 
             delim=",")
