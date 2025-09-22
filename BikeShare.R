@@ -52,7 +52,7 @@ preg_wf <- workflow() %>%
   add_model(preg_model)
 
 penalty_grid <- grid_regular(
-  penalty(range = c(-4, 1)), # log10 scale ~ 0.0001 to 10
+  penalty(range = c(-10, 1)), # log10 scale ~ 0.000...1 to 10
   mixture(range = c(0, 1)),  # ridge → lasso
   levels = c(10, 5)           # gives 50 combos
 )
@@ -72,6 +72,7 @@ preg_tune <- tune_grid(
 collect_metrics(preg_tune)
 
 best_model <- select_best(preg_tune, metric = "rmse")
+best_model
 
 final_wf <- finalize_workflow(preg_wf, best_model)
 
