@@ -20,4 +20,5 @@ rstudioapi::restartSession()
 install.packages("bonsai")
 rstudioapi::restartSession()
 install.packages("lightgbm")
-
+rstudioapi::restartSession()
+install.packages("dbarts")
