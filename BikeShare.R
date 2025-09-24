@@ -11,7 +11,7 @@ trainData <- bikeshare |>
 testData <- vroom("KaggleBikeShare/bike-sharing-demand/test.csv")
 
 # -------------------------------------------------------------------------
-## Feature Engineering
+## Recipe
 bike_recipe <- recipe(log_count ~ ., data = trainData) %>% # Set model formula and dataset
   step_mutate(weather = ifelse(weather == 4, 3, weather)) %>% 
   step_mutate(weather = factor(weather),
@@ -30,55 +30,56 @@ prepped_recipe <- prep(bike_recipe) # Sets up the preprocessing using myDataSet
 bake(prepped_recipe, new_data=testData)
 
 # -------------------------------------------------------------------------
-# REGRESSION TREE
+# Random Forest
 
-# 1. Define the tree model
-tree_mod <- decision_tree(cost_complexity = tune(),
-                          tree_depth = tune(),
-                          min_n = tune()) %>%
-  set_engine("rpart") %>%
+# model
+forest_mod <- rand_forest(mtry = tune(),
+                          min_n = tune(),
+                          trees = 1000) %>%
+  set_engine("ranger") %>%
   set_mode("regression")
 
-# 2. Combine model with recipe into workflow
+# workflow
 bike_wf <- workflow() %>%
   add_recipe(bike_recipe) %>%
-  add_model(tree_mod)
+  add_model(forest_mod)
 
-# 3. Set up tuning grid
-tree_grid <- grid_regular(
-  tree_depth(),
-  cost_complexity(),
+# tuning grid
+maxNumXs <- prepped_recipe %>%
+  bake(new_data = NULL) %>%
+  select(-log_count) %>%
+  ncol()
+maxNumXs # 20
+
+forest_grid <- grid_regular(
+  mtry(range = c(1,maxNumXs)),
   min_n(),
   levels = 5)
 
-# 4. Set up cross-validation
+# Set up K-fold CV
 cv_folds <- vfold_cv(trainData, v = 10, repeats = 1)
 
-# 5. Tune parameters
-tree_tune <- bike_wf %>%
+forest_tune <- bike_wf %>%
   tune_grid(resamples = cv_folds,
-            grid = tree_grid,
-            # control = control_grid(save_pred = TRUE)
-            metrics = metric_set(rmse, mae, rsq)
-            )
+            grid = forest_grid,
+            metrics = metric_set(rmse, mae, rsq))
 
 # 6. Select best model
-best_tree <- tree_tune %>%
+best_forest <- forest_tune %>%
   select_best(metric = "rmse")
 
-# 7. Finalize workflow and fit
-final_tree_wf <- bike_wf %>%
-  finalize_workflow(best_tree) %>%
+# Finalize workflow and predict
+final_forest_wf <- bike_wf %>%
+  finalize_workflow(best_forest) %>%
   fit(data = trainData)
 
-# 8. Predict on test data
-tree_preds <- predict(final_tree_wf, new_data = testData) %>%
+forest_preds <- predict(final_forest_wf, new_data = testData) %>%
   mutate(.pred = exp(.pred))
 
 
 # -------------------------------------------------------------------------
 # Format the Predictions for Submission to Kaggle
-kaggle_submission <- tree_preds |>
+kaggle_submission <- forest_preds |>
   bind_cols(testData) |>
   select(datetime, .pred) |>
   rename(count=.pred) |>
@@ -87,5 +88,5 @@ kaggle_submission <- tree_preds |>
 
 ## Write out the file
 vroom_write(x=kaggle_submission, 
-            file="./KaggleBikeShare/k-subs/tree6.csv", 
+            file="./KaggleBikeShare/k-subs/forest1.csv", 
             delim=",")
