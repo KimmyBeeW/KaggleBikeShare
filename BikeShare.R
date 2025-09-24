@@ -32,60 +32,59 @@ bake(prepped_recipe, new_data=testData)
 # REGRESSION TREE
 
 # 1. Define the tree model
-tree_mod <- decision_tree(
-  cost_complexity = tune(),
-  tree_depth = tune(),
-  min_n = tune()) %>%
+tree_mod <- decision_tree(cost_complexity = tune(),
+                          tree_depth = tune(),
+                          min_n = tune()) %>%
   set_engine("rpart") %>%
   set_mode("regression")
 
 # 2. Combine model with recipe into workflow
-tree_wf <- workflow() %>%
+bike_wf <- workflow() %>%
   add_recipe(bike_recipe) %>%
   add_model(tree_mod)
 
 # 3. Set up tuning grid
 tree_grid <- grid_regular(
-  tree_depth(range = c(1, 10)),
-  cost_complexity(range = c(-3, -1)),
-  min_n(range = c(2, 10)),
-  levels = c(5, 5, 5)
-)
+  tree_depth(),
+  cost_complexity(),
+  min_n(),
+  levels = 5)
 
 # 4. Set up cross-validation
-set.seed(123)
-cv_folds <- vfold_cv(trainData, v = 10)
+cv_folds <- vfold_cv(trainData, v = 10, repeats = 1)
 
 # 5. Tune parameters
-tree_tune <- tune_grid(
-  tree_wf,
-  resamples = cv_folds,
-  grid = tree_grid,
-  control = control_grid(save_pred = TRUE)
-)
+tree_tune <- bike_wf %>%
+  tune_grid(resamples = cv_folds,
+            grid = tree_grid,
+            # control = control_grid(save_pred = TRUE)
+            metrics = metric_set(rmse, mae, rsq)
+            )
 
 # 6. Select best model
-best_tree <- select_best(tree_tune, metric = "rmse")
+best_tree <- tree_tune %>%
+  select_best(metric = "rmse")
 
 # 7. Finalize workflow and fit
-final_tree_wf <- finalize_workflow(tree_wf, best_tree)
-final_tree_fit <- fit(final_tree_wf, data = trainData)
+final_tree_wf <- bike_wf %>%
+  finalize_workflow(best_tree) %>%
+  fit(data = trainData)
 
 # 8. Predict on test data
-tree_preds <- predict(final_tree_fit, new_data = testData) %>%
-  mutate(.pred = exp(.pred))  # if using log(count) target
+tree_preds <- predict(final_tree_wf, new_data = testData) %>%
+  mutate(.pred = exp(.pred))
 
 
 # -------------------------------------------------------------------------
 # Format the Predictions for Submission to Kaggle
 kaggle_submission <- tree_preds |>
-  bind_cols(testData) |> #Bind predictions with test data
-  select(datetime, .pred) |> #Just keep datetime and prediction variables
-  rename(count=.pred) |> #rename pred to count (for submission to Kaggle)
-  mutate(count=pmax(0, count)) |> #pointwise max of (0, prediction)
-  mutate(datetime=as.character(format(datetime))) #needed for right format to Kaggle
+  bind_cols(testData) |>
+  select(datetime, .pred) |>
+  rename(count=.pred) |>
+  mutate(count=pmax(0, count)) |>
+  mutate(datetime=as.character(format(datetime)))
 
 ## Write out the file
 vroom_write(x=kaggle_submission, 
-            file="./KaggleBikeShare/tree.csv", 
+            file="./KaggleBikeShare/tree2.csv", 
             delim=",")
