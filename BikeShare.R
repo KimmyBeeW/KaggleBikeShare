@@ -22,8 +22,8 @@ bike_recipe <- recipe(log_count ~ ., data = trainData) %>% # Set model formula a
   step_time(datetime, features="hour") %>% 
   step_rm(datetime) %>%
   step_dummy(all_nominal_predictors()) %>% #create dummy variables
-  # step_zv(all_predictors()) %>% #removes zero-variance predictors
-  # step_corr(all_predictors(), threshold=0.5) %>% # removes > than .5 corr
+  step_zv(all_predictors()) %>% #removes zero-variance predictors
+  step_corr(all_predictors(), threshold=0.5) %>% # removes > than .5 corr
   step_normalize(all_numeric_predictors()) # all predictors are numeric and on the same scale.
 prepped_recipe <- prep(bike_recipe) # Sets up the preprocessing using myDataSet
 bake(prepped_recipe, new_data=testData)
@@ -86,5 +86,5 @@ kaggle_submission <- tree_preds |>
 
 ## Write out the file
 vroom_write(x=kaggle_submission, 
-            file="./KaggleBikeShare/tree2.csv", 
+            file="./KaggleBikeShare/k-subs/tree3.csv", 
             delim=",")
