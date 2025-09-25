@@ -1,24 +1,10 @@
-rstudioapi::restartSession()
-install.packages("vroom")
-rstudioapi::restartSession()
-install.packages("ggplot2") # plotnine in Python
-rstudioapi::restartSession()
-install.packages("dplyr")
-rstudioapi::restartSession()
-install.packages("skimr")
-rstudioapi::restartSession()
-install.packages("DataExplorer")
-rstudioapi::restartSession()
-install.packages("GGally")
-rstudioapi::restartSession()
-install.packages("tidymodels")
-rstudioapi::restartSession()
-install.packages("rpart")
-rstudioapi::restartSession()
-install.packages("ranger")
-rstudioapi::restartSession()
-install.packages("bonsai")
-rstudioapi::restartSession()
-install.packages("lightgbm")
-rstudioapi::restartSession()
-install.packages("dbarts")
+## Update R
+# install.packages("installr")
+# library(installr)   
+# updateR()
+# install.packages("Rtools")
+
+install.packages(c("vroom", "ggplot2", "dplyr", "skimr", "DataExplorer", 
+                   "forcats", "GGally", "tidymodels", "rpart", "ranger", 
+                   "bonsai", "lightgbm", "dbarts", "tidyverse"))
+
