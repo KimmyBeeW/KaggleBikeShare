@@ -6,5 +6,6 @@
 
 install.packages(c("vroom", "ggplot2", "dplyr", "skimr", "DataExplorer", 
                    "forcats", "GGally", "tidymodels", "rpart", "ranger", 
-                   "bonsai", "lightgbm", "dbarts", "tidyverse"))
+                   "bonsai", "lightgbm", "dbarts", "tidyverse", "agua", 
+                   "h2o"))
 
